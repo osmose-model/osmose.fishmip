@@ -6,7 +6,8 @@ addPredictor = function(model, newdata, predictor) {
 
 
 writeConfigFile = function(model, scenario, fishing, period, path, 
-                           multiplier=NULL, nltl=4, ndt=24, test=FALSE) {
+                           multiplier=NULL, nltl=4, ndt=24, test=FALSE,
+                           replicates=1, ncpu=1) {
   
   tmp0 = "osmose.configuration.calibration;../../../LIB/osmose/parameters/calibration-parameters.csv\n
   osmose.configuration.main;../../../LIB/osmose/parameters/main-parameters_%s.csv\n
@@ -21,7 +22,9 @@ writeConfigFile = function(model, scenario, fishing, period, path,
   plankton.multiplier.plk3;%s\n
   simulation.time.nyear;%s\n
   ltl.nstep;%s\n
-  simulation.restart.spinup;%s\n"
+  simulation.restart.spinup;%s\n
+  simulation.ncpu;%s\n
+  simulation.nsimulation;%s\n"
   
   tmp1 = "osmose.configuration.calibration;../../../LIB/osmose/parameters/calibration-parameters.csv\n
   osmose.configuration.main;../../../LIB/osmose/parameters/main-parameters_%s.csv\n
@@ -36,8 +39,11 @@ writeConfigFile = function(model, scenario, fishing, period, path,
   plankton.multiplier.plk3;%s\n
   simulation.time.nyear;%s\n
   ltl.nstep;%s\n
-  simulation.restart.spinup;%s\n"
+  simulation.restart.spinup;%s\n
+  simulation.ncpu;%s\n
+  simulation.nsimulation;%s\n"
   
+  if(!isTRUE(test)) replicates = 1
   
   tmp = ifelse(!isTRUE(test), tmp0, tmp1) 
   
@@ -57,7 +63,7 @@ writeConfigFile = function(model, scenario, fishing, period, path,
   
   txt = sprintf(tmp, periodX, fishing, F, restart, model, scenario, period,
                 multiplier[1],multiplier[2],multiplier[3],multiplier[4], 
-                years$T, years$nstep, years$T)
+                years$T, years$nstep, years$T, ncpu, replicates)
   
   fileName0 = sprintf("%s_%s_%s_%s.csv", model, scenario, fishing, period)
   fileName1 = sprintf("%s_%s_%s_%s-test.csv", model, scenario, fishing, period)
