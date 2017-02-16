@@ -361,6 +361,24 @@ readMask = function(maskFile) {
   return(out)
 }
 
+.readEnvData = function(file, dim) {
+  if(length(file)==0) return(array(dim=dim))
+  xtemp = nc_open(file)
+  out = ncvar_get(xtemp, names(xtemp$var))
+  return(out)
+}
+
+.readNcdfDimensions = function(files) {
+  files = files[sapply(files, FUN=length)>0]
+  xtemp = nc_open(files[[1]])
+  dimNames = names(xtemp$dim) 
+  dims = list()
+  for(dimName in dimNames) {
+    dims[[dimName]] = ncvar_get(xtemp, dimName)    
+  }
+  return(dims)
+}
+
 .readLTLDimensions = function(files) {
   files = files[sapply(files, FUN=length)>0]
   xtemp = nc_open(files[[1]])
@@ -372,6 +390,32 @@ readMask = function(maskFile) {
   return(dims)
 }
 
+.getEnvFiles = function(input, pattern, varNames) {
+  
+  fVarNames = paste("_", varNames, "_", sep="")
+  .getEnvFiles1 = function(input, pattern, varNames, res) {
+    files = dir(path=input, pattern=pattern)
+    files = grep(patt=res, x=files, value = TRUE)
+    files = file.path(input, files)
+    
+    files = lapply(fVarNames, FUN=grep, x=files, value=TRUE)
+    # files = list(grep(patt=fvarNames[1], x=files, value = TRUE),
+    #              grep(patt=fvarNames[2], x=files, value = TRUE),
+    #              grep(patt=fvarNames[3], x=files, value = TRUE),
+    #              grep(patt=fvarNames[4], x=files, value = TRUE))
+    
+    names(files) = varNames
+    return(files)
+  }
+  
+  byMonth = .getEnvFiles1(input, pattern, varNames, res="monthly")
+  byYear  = .getEnvFiles1(input, pattern, varNames, res="annual")
+  bm = sum(sapply(byMonth, FUN=length)>0)
+  by = sum(sapply(byYear, FUN=length)>0)
+  out = if(bm>=by) byMonth else byYear
+  return(out)
+  
+}
 
 .getLTLFiles = function(input, pattern, ltlNames) {
   
