@@ -58,9 +58,9 @@ calculateCline = function(obj, depth, k=1) {
   yyf = seq(from=ry[1], to=ry[2], by=1)
   dxf = yf(yyf, deriv=1)
   
-  clina = yyf[which.max(dxf)] # clina
+  cline = yyf[which.max(dxf)] # clina
   
-  return(sig*clina)
+  return(sig*cline)
 }
 
 fitOxygenProfile = function(x, depth) {
@@ -86,26 +86,31 @@ fitOxygenProfile = function(x, depth) {
   dxf = yf(yyf, deriv=1)
   xxf = yf(yyf)
   
-  clina = yyf[which.max(dxf)] # clina
+  cline = yyf[which.max(dxf)] # clina
   oxy   = xxf[which.max(dxf)] # oxygen at clina
   
   out = list(x=x, y=y, xfit=xxf, yfit=yyf, 
-             cline=sig*clina, oxy=oxy)
+             cline=cline, oxy=oxy)
   class(out) = c("oxygenProfile", class(out))
   return(out)
 }
 
 plot.oxygenProfile = function(object, cex=1, ...) {
-  plot(object$x, object$y, pch=19)
+  plot(object$x, object$y, pch=19, 
+       xlab="Oxygen concentration (mL/L)",
+       ylab="Depth (m)", axes=FALSE)
+  axis(1)
+  axis(2, at=axTicks(2), labels=abs(axTicks(2)))
   lines(object$xfit, object$yfit, col="blue", lwd=2)
   abline(h=object$cline, lty=2, col="red")
   abline(v=object$oxy, lty=2, col="red")
-  txt1 = sprintf("Oxycline depth = %0.0f m", object$cline)
+  txt1 = sprintf("Oxycline depth = %0.0f m", abs(object$cline))
   txt2 = sprintf("Oxygen concentration at oxycline = %0.1f mL/L",
                  object$oxy)
   mtext(txt1, 1, adj=0.95, line=-3, cex=cex)
   mtext(txt2, 1, adj=0.95, line=-2, cex=cex)
-
+  box()
+  return(invisible())
 }
 
 
