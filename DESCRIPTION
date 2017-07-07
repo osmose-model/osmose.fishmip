@@ -9,4 +9,4 @@ Description: All the functions needed to simplify the simulations
     using the OSMOSE model (www.osmose-model.org) for the FISH-MIP
     project. 
 License: GPL-2
-Depends: kali, ncdf4, ncdf
+Depends: kali, ncdf4 

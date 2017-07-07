@@ -500,10 +500,8 @@ mergeLTLData = function(input, output, varName="ltl", cf=NULL) {
 }
 
 .capitalize = function(x) {
-  n = nchar(x)
-  first = substr(x, 1, 1)
-  remainder = substr(x, 2, n)
-  out = paste0(toupper(first), remainder)
+  out = paste0(toupper(substr(x, 1, 1)), 
+               substr(x, 2, nchar(x)))
   return(out)
 }
 

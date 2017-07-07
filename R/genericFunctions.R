@@ -9,7 +9,15 @@ calculateCline = function(obj, depth, k=1) {
   
 }
 
-.getCline = function(x, depth, k=1) {
+calculateOxycline = function(obj, depth) {
+  
+  out = apply(obj, -3, .getOxycline, depth=depth)
+  dim(out) = dim(obj)[-3]
+  return(out)
+  
+}
+
+.getCline = function(x, depth, k=1, xtr=+1) {
   
   # check depths, convert to negative if necessary
   sig = 1
@@ -25,7 +33,7 @@ calculateCline = function(obj, depth, k=1) {
   y = depth[yind]
   x = x[yind]
   
-  yf = .fitProfile(x=x, y=y, k=k)
+  yf = .fitProfile(x=x, y=y, k=k, xtr=xtr)
   ry = range(y, na.rm=TRUE)
   
   yyf = seq(from=ry[1], to=ry[2], by=1)
@@ -36,7 +44,7 @@ calculateCline = function(obj, depth, k=1) {
   return(sig*clina)
 }
 
-.getOxycline = function(x, depth, profile=FALSE) {
+.getOxycline = function(x, depth) {
   
   # check depths, convert to negative if necessary
   sig = 1
@@ -63,7 +71,7 @@ calculateCline = function(obj, depth, k=1) {
   return(sig*cline)
 }
 
-fitOxygenProfile = function(x, depth) {
+fitOxygenProfile = function(x, depth, ref=2) {
   
   # check depths, convert to negative if necessary
   sig = 1
@@ -89,8 +97,12 @@ fitOxygenProfile = function(x, depth) {
   cline = yyf[which.max(dxf)] # clina
   oxy   = xxf[which.max(dxf)] # oxygen at clina
   
+  fit = (xxf - ref)^2 
+  
+  iso = yyf[which.min(fit)] # isoline
+  
   out = list(x=x, y=y, xfit=xxf, yfit=yyf, 
-             cline=cline, oxy=oxy)
+             cline=cline, oxy=oxy, iso=iso)
   class(out) = c("oxygenProfile", class(out))
   return(out)
 }
@@ -185,6 +197,9 @@ plot.oxygenProfile = function(object, cex=1, ...) {
   
   x = c(x0, x1)
   y = c(y0, y1)
+  ind = !is.na(x)
+  x = x[ind]
+  y = y[ind]
   ind = sort(y, index.return=TRUE)$ix
   x = x[ind]
   y = y[ind]
@@ -264,15 +279,16 @@ makeMonotonic = function(x, y, k=1, iter.max=15, xtr=1) {
 # Isolines ----------------------------------------------------------------
 
 
-calculateIsoline = function(obj, depth, ref, k=1) {
+calculateIsoline = function(obj, depth, ref, k=1, xtr=1) {
   
-  out = apply(obj, -3, .getIsoline, depth=depth, ref=ref, k=k)
+  out = apply(obj, -3, .getIsoline, 
+              depth=depth, ref=ref, k=k, xtr=xtr)
   dim(out) = dim(obj)[-3]
   return(out)
   
 }
 
-.getIsoline = function(x, depth, ref, k=1) {
+.getIsoline = function(x, depth, ref, k=1, xtr=1) {
   
   rx = range(x, na.rm=TRUE)
   test = ref >= rx[1] & ref <= rx[2]
@@ -291,7 +307,7 @@ calculateIsoline = function(obj, depth, ref, k=1) {
   y = depth[yind]
   x = x[yind]
   
-  yf = .fitProfile(x=x, y=y, k=k)
+  yf = .fitProfile(x=x, y=y, k=k, xtr=xtr)
   ry = range(y, na.rm=TRUE)
   
   yyf = seq(from=ry[1], to=ry[2], by=1)
