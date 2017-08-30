@@ -6,14 +6,17 @@ addPredictor = function(model, newdata, predictor) {
 
 
 writeConfigFile = function(model, scenario, fishing, period, path, 
-                           multiplier=NULL, nltl=4, ndt=24, test=FALSE,
+                           multiplier=NULL, output="fishmip", nltl=4, ndt=24, test=FALSE,
                            replicates=1, ncpu=1) {
   
-  tmp0 = "osmose.configuration.calibration;../../../LIB/osmose/parameters/calibration-parameters.csv\n
+  tmp = "osmose.configuration.calibration;../../../LIB/osmose/parameters/calibration-parameters.csv\n
   osmose.configuration.main;../../../LIB/osmose/parameters/main-parameters_%s.csv\n
-  osmose.configuration.output;../../../LIB/osmose/parameters/output-parameters_fishmip.csv\n
+  osmose.configuration.output;../../../LIB/osmose/parameters/output-parameters_%s.csv\n
   osmose.configuration.fishing;../../../LIB/osmose/parameters/%s-parameters%s.csv\n
-  osmose.configuration.simulation;../../../LIB/osmose/parameters/simulation-parameters.csv\n
+  osmose.configuration.simulation;../../../LIB/osmose/parameters/simulation-parameters%s.csv\n
+  osmose.configuration.larval;larval/config_larval-%s.csv\n
+  osmose.configuration.plk2fish;plankton/config_planktonAccess-%s.csv\n
+  osmose.configuration.maps;../../../LIB/osmose/parameters/maps-parameters_%s.csv\n
   simulation.restart.file;../../../LIB/osmose/initial_conditions/%s.nc\n
   ltl.netcdf.file;../../../LIB/osmose/%s_%s_ltl-osmose_humboldt-n_15days_%s.nc\n
   plankton.multiplier.plk0;%s\n
@@ -26,26 +29,11 @@ writeConfigFile = function(model, scenario, fishing, period, path,
   simulation.ncpu;%s\n
   simulation.nsimulation;%s\n"
   
-  tmp1 = "osmose.configuration.calibration;../../../LIB/osmose/parameters/calibration-parameters.csv\n
-  osmose.configuration.main;../../../LIB/osmose/parameters/main-parameters_%s.csv\n
-  osmose.configuration.output;../../../LIB/osmose/parameters/output-parameters_test.csv\n
-  osmose.configuration.fishing;../../../LIB/osmose/parameters/%s-parameters%s.csv\n
-  osmose.configuration.simulation;../../../LIB/osmose/parameters/simulation-parameters_short.csv\n
-  simulation.restart.file;../../../LIB/osmose/initial_conditions/%s.nc\n
-  ltl.netcdf.file;../../../LIB/osmose/%s_%s_ltl-osmose_humboldt-n_15days_%s.nc\n
-  plankton.multiplier.plk0;%s\n
-  plankton.multiplier.plk1;%s\n
-  plankton.multiplier.plk2;%s\n
-  plankton.multiplier.plk3;%s\n
-  simulation.time.nyear;%s\n
-  ltl.nstep;%s\n
-  simulation.restart.spinup;%s\n
-  simulation.ncpu;%s\n
-  simulation.nsimulation;%s\n"
+  replicates = if(isTRUE(test)) 1 else replicates
+  output = if(isTRUE(test)) "test" else output
+  simus  = if(isTRUE(test)) "_short" else ""
   
-  if(!isTRUE(test)) replicates = 1
-  
-  tmp = ifelse(!isTRUE(test), tmp0, tmp1) 
+  # tmp = ifelse(isTRUE(test), tmp1, tmp0) 
   
   if(is.null(multiplier)) multiplier = rep(1, nltl)
   
@@ -55,13 +43,22 @@ writeConfigFile = function(model, scenario, fishing, period, path,
   restart = sprintf("%s_%s_%s_restart", model, fishing, start)
   restart = ifelse(scenario=="historical", "hindcast_restart", restart)
   
+  modScen = ifelse(scenario=="historical", "historical", 
+                  sprintf("%s_%s", model, scenario))
+  modScen = ifelse(scenario=="climatological", "clim", modScen)
+  
+  # theMaps = ifelse(scenario=="historical", "historical", 
+  #                  sprintf("%s_%s", model, scenario))
+  # theMaps = ifelse(scenario=="climatological", "clim", theMaps)
+ 
   years = as.list(setNames(as.numeric(unlist(strsplit(period, "_"))), nm=c("start", "end")))
   years$T = years$end - years$start + 1
   years$nstep = ndt*ifelse(scenario=="climatological", 1, years$T)
   
   periodX = ifelse(scenario=="historical", "historical", "future")
   
-  txt = sprintf(tmp, periodX, fishing, F, restart, model, scenario, period,
+  txt = sprintf(tmp, periodX, output, fishing, F, simus, modScen, modScen, modScen, restart, 
+                model, scenario, period, 
                 multiplier[1],multiplier[2],multiplier[3],multiplier[4], 
                 years$T, years$nstep, years$T, ncpu, replicates)
   
@@ -864,7 +861,8 @@ createOsmoseLTL = function(file, outputFile, freq, ndt=NULL,
 }
 
 
-runOsmoseTest = function(model, scenario, fishing, period, multiplier, input, output, jar) {
+runOsmoseTest = function(model, scenario, fishing, period, multiplier,
+                         input, output, jar, ...) {
   
   config  = writeConfigFile(model=model, scenario=scenario, 
                             fishing=fishing, period=period, path=input, 
@@ -881,13 +879,12 @@ runOsmoseTest = function(model, scenario, fishing, period, multiplier, input, ou
   
   doRun = .doRunTest(logFile, multiplier)
   
-  if(!file.exists(dirname(logFile))) dir.create(dirname(logFile))
+  if(!file.exists(dirname(logFile))) dir.create(dirname(logFile), recursive=TRUE)
   if(!file.exists(logFile)) file.create(logFile)
   
   if(doRun) {
-    runOsmose(osmose = jar, 
-              input = file.path(input, config),
-              output = file.path(output, "test", confName))
+    runOsmose(osmose = jar, input = config,
+              output = file.path(output, "test", confName), ...)
     cat(date(), "\n", file = logFile, append = TRUE)
     write(x = multiplier, file = logFile, append = TRUE)
     
