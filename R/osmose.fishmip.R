@@ -7,7 +7,10 @@ addPredictor = function(model, newdata, predictor) {
 
 writeConfigFile = function(model, scenario, fishing, period, path, 
                            multiplier=NULL, output="fishmip", nltl=4, ndt=24, test=FALSE,
-                           replicates=1, ncpu=1) {
+                           replicates=1, ncpu=1, T=NULL, clim=FALSE) {
+  
+  if(length(clim)==1) clim = rep(clim, 3)
+  if(length(clim)!=3) stop("clim must be length 1 or 3 (larval, plankton, maps).")
   
   tmp = "osmose.configuration.calibration;../../../LIB/osmose/parameters/calibration-parameters.csv\n
   osmose.configuration.main;../../../LIB/osmose/parameters/main-parameters_%s.csv\n
@@ -33,32 +36,31 @@ writeConfigFile = function(model, scenario, fishing, period, path,
   output = if(isTRUE(test)) "test" else output
   simus  = if(isTRUE(test)) "_short" else ""
   
-  # tmp = ifelse(isTRUE(test), tmp1, tmp0) 
-  
   if(is.null(multiplier)) multiplier = rep(1, nltl)
   
   F = ifelse(scenario=="historical", "historical", "future")
   F = ifelse(fishing=="fishing", paste0("_",F), "")
   start = as.numeric(unlist(strsplit(period, "_"))[1]) 
   restart = sprintf("%s_%s_%s_restart", model, fishing, start)
-  restart = ifelse(scenario=="historical", "hindcast_restart", restart)
+  restart = ifelse(scenario=="historical", 
+                   sprintf("%d/hindcast_restart", start), restart)
   
   modScen = ifelse(scenario=="historical", "historical", 
                   sprintf("%s_%s", model, scenario))
   modScen = ifelse(scenario=="climatological", "clim", modScen)
   
-  # theMaps = ifelse(scenario=="historical", "historical", 
-  #                  sprintf("%s_%s", model, scenario))
-  # theMaps = ifelse(scenario=="climatological", "clim", theMaps)
- 
+  modScen = rep(modScen, 3)
+  modScen[clim] = "clim"
+  
   years = as.list(setNames(as.numeric(unlist(strsplit(period, "_"))), nm=c("start", "end")))
   years$T = years$end - years$start + 1
+  if(!is.null(T)) years$T = T
   years$nstep = ndt*ifelse(scenario=="climatological", 1, years$T)
   
   periodX = ifelse(scenario=="historical", "historical", "future")
   
-  txt = sprintf(tmp, periodX, output, fishing, F, simus, modScen, modScen, modScen, restart, 
-                model, scenario, period, 
+  txt = sprintf(tmp, periodX, output, fishing, F, simus, modScen[1], modScen[2], 
+                modScen[3], restart, model, scenario, period, 
                 multiplier[1],multiplier[2],multiplier[3],multiplier[4], 
                 years$T, years$nstep, years$T, ncpu, replicates)
   
@@ -324,8 +326,8 @@ readMask = function(maskFile) {
   lat = ncvar_get(nc, "lat")
   lon = ncvar_get(nc, "lon")
   old = createGridAxes(lat=range(lat), lon=range(lon),
-                       dx=mean(abs(diff(lon))),
-                       dy=mean(abs(diff(lat))))
+                       dx=mean(abs(diff(sort(lon)))),
+                       dy=mean(abs(diff(sort(lat)))))
   old$mask = mask
   nc_close(nc)  
   return(old)
@@ -862,11 +864,11 @@ createOsmoseLTL = function(file, outputFile, freq, ndt=NULL,
 
 
 runOsmoseTest = function(model, scenario, fishing, period, multiplier,
-                         input, output, jar, ...) {
+                         input, output, jar, T=NULL, force=FALSE, clim=FALSE, ...) {
   
   config  = writeConfigFile(model=model, scenario=scenario, 
                             fishing=fishing, period=period, path=input, 
-                            multiplier=multiplier, test=TRUE)
+                            multiplier=multiplier, test=TRUE, T=T, clim=clim)
   
   DateStamp()
   confName = gsub("^[0-9]*_", "", gsub("\\.csv", "", basename(config)))
@@ -877,7 +879,7 @@ runOsmoseTest = function(model, scenario, fishing, period, multiplier,
   
   if(is.null(multiplier)) multiplier = rep(1, 4)
   
-  doRun = .doRunTest(logFile, multiplier)
+  doRun = .doRunTest(logFile, multiplier) | force
   
   if(!file.exists(dirname(logFile))) dir.create(dirname(logFile), recursive=TRUE)
   if(!file.exists(logFile)) file.create(logFile)
@@ -899,30 +901,36 @@ runOsmoseTest = function(model, scenario, fishing, period, multiplier,
 }
 
 
-compareOsmoseBiomass = function(...) {
+compareOsmoseBiomass = function(..., freq=12, start=0, factor=1,
+                                modelNames=NULL, reference=1) {
   
   old.par = par(no.readonly = TRUE)
   on.exit(par(old.par))
   
   models = list(...)
   stopifnot(all(sapply(models, inherits, what="osmose")))
-  modelNames = as.character(match.call())[-1]
+  if(is.null(modelNames)) 
+    modelNames = as.character(match.call())[-1][seq_along(models)]
   names(models) = modelNames
-  bio = lapply(models, getVar, var="biomass")
-  dims = sapply(bio, dim)
+  mods = lapply(models, osmose::getVar, var="biomass")
+  dims = sapply(mods, dim)
   allMatch = all(dims[2,-1]==dims[2,1])
   stopifnot(allMatch)
-  out = array(dim=c(apply(dims, 1, max), length(bio)))
-  for(i in seq_along(bio)) {
-    ind = seq_len(nrow(bio[[i]]))
-    out[ind,,i] = bio[[i]]
+  out = array(dim=c(apply(dims, 1, max), length(mods)))
+  for(i in seq_along(mods)) {
+    ind = seq_len(nrow(mods[[i]]))
+    out[ind,,i] = factor*mods[[i]]
   }
   
   dimnames(out)[[2]] = colnames(models[[1]])
   dimnames(out)[[3]] = modelNames
   par(mfrow=kali::getmfrow(dim(out)[2]), mar=c(3,3,1,1),
       oma=c(0,0,2,0))
-  apply(out, 2, matplot, type="l", lty=1)
+  .mymatplot = function(y, x, ...) matplot(x=x, y=y, ...)
+  time = seq(from=0, by=1/freq, length=nrow(out)) + start + 0.5/freq
+  lwd = rep(1, length=length(mods))
+  lwd[reference] = 2
+  apply(out, 2, .mymatplot, type="l", lty=1, las=1, x=time, lwd=lwd)
   title(main=paste(modelNames, collapse=" - "), outer=TRUE)
   return(invisible(out))
 }
